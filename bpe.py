@@ -1,10 +1,12 @@
 import re
+from itertools import pairwise
 
 class BPETokenizer:
     def __init__(self):
         self.stoi = {}
         self.itos = {}
         self.merges = {}
+        self.pattern = r"['’‘]s|['’‘]t|['’‘]re|['’‘]re|['’‘]ve|['’‘]m|['’‘]ll|['’‘]d | ?[^\W\d_]+| ?\d+| ?[^\w\s\d]+"
 
     def train(self, text, target_vocab_size):
         vocab = BPETokenizer._list_of_unique_characters(text) # not updated anymore, only initial
@@ -13,8 +15,7 @@ class BPETokenizer:
         number_merges_needed = target_vocab_size - len(vocab)
         # token_ids = [self.stoi[char] for char in text]
 
-        pattern1 = r"['’‘]s|['’‘]t|['’‘]re|['’‘]re|['’‘]ve|['’‘]m|['’‘]ll|['’‘]d | ?[^\W\d_]+| ?\d+| ?[^\w\s\d]+"
-        preprocessed_text = re.findall(pattern1, text)
+        preprocessed_text = re.findall(self.pattern, text)
         token_ids = [([self.stoi[char] for char in chunk]) for chunk in preprocessed_text]
 
         for i in range(number_merges_needed):
@@ -36,16 +37,7 @@ class BPETokenizer:
         
             new_token_ids = []
             for chunk in token_ids:
-                j=0
-                new_chunk = []
-                while j < len(chunk):
-                    if j < len(chunk)-1 and (chunk[j],chunk[j+1]) == best_pair:
-                        new_chunk.append(new_token_id)
-                        j+=2
-                    else:
-                        new_chunk.append(chunk[j])
-                        j+=1
-                new_token_ids.append(new_chunk)
+                new_token_ids.append(BPETokenizer._merge_pair(chunk,best_pair,new_token_id))
             token_ids = new_token_ids
 
         special_tokens = ["<|eos|>"]
@@ -55,10 +47,39 @@ class BPETokenizer:
             self.itos[new_id] = st
 
     def encode(self, text):
-        pass
+        preprocessed_text = re.findall(self.pattern, text)
+        token_ids = [([self.stoi[char] for char in chunk]) for chunk in preprocessed_text]
+
+        tokenized_text = []
+        for i in range(len(token_ids)):
+            chunk = token_ids[i]
+
+            while len(chunk) >= 2:
+                # iterate over all adjacent pairs
+                best_merge = min(pairwise(chunk), key=lambda p: self.merges.get(p, float("inf")))
+                if best_merge not in self.merges:
+                    break
+                new_chunk = BPETokenizer._merge_pair(chunk,best_merge, self.merges[best_merge])
+                tokenized_text.append(new_chunk)
+                chunk = new_chunk
+
+        return tokenized_text
+        
 
     def decode(self, token_ids):
         pass
+
+    def _merge_pair(token_ids, pair, new_token_id):
+        j=0
+        new_chunk = []
+        while j < len(token_ids):
+            if j < len(token_ids)-1 and (token_ids[j],token_ids[j+1]) == pair:
+                new_chunk.append(new_token_id)
+                j+=2
+            else:
+                new_chunk.append(token_ids[j])
+                j+=1
+        return new_chunk
 
     def _list_of_unique_characters(text):
         res = set()
