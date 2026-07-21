@@ -67,7 +67,8 @@ class BPETokenizer:
         
 
     def decode(self, token_ids):
-        pass
+        text = [([self.itos[tok] for tok in chunk]) for chunk in token_ids]
+        return text
 
     def _merge_pair(token_ids, pair, new_token_id):
         j=0
